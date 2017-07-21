@@ -25,20 +25,20 @@ type alias Token =
     String
 
 
-type alias Item =
-    { postId : Int
-    , id : Int
-    , name : String
-    , body : String
+type alias Type =
+    { id : Int
+    , label : String
     }
 
 
-
--- { date : String
--- , amount : Float
--- , invoice : String
--- , description : String
--- }
+type alias Item =
+    { key : String
+    , amount : Float
+    , typeId : Int
+    , date : String
+    , description : String
+    , invoice : String
+    }
 
 
 type alias LoginPageModel =
@@ -74,12 +74,6 @@ type alias Model =
     , uploadPage : UploadPageModel
     , settingsPage : SettingsPageModel
     , listPage : ListPageModel
-    }
-
-
-type alias Type =
-    { id : Int
-    , label : String
     }
 
 
@@ -129,10 +123,12 @@ model =
 
 emptyItem : Item
 emptyItem =
-    { postId = 0
-    , id = 0
-    , name = ""
-    , body = ""
+    { key = ""
+    , amount = 0
+    , typeId = 999
+    , date = ""
+    , description = ""
+    , invoice = ""
     }
 
 
@@ -435,7 +431,7 @@ listPageView : ListPageModel -> Html Msg
 listPageView model =
     div []
         [ text "Fake list"
-        , ul [] (List.map (\item -> li [] [ text item.name ]) model.items)
+        , ul [] (List.map (\item -> li [] [ text item.description ]) model.items)
         ]
 
 
@@ -469,7 +465,7 @@ loginRequest user password =
             Http.request
                 { method = "POST"
                 , body = loginEncoder user password |> Http.jsonBody
-                , url = "https://reqres.in/api/login/"
+                , url = "https://www.googleapis.com/identitytoolkit/v3/relyingparty/verifyPassword?key=AIzaSyAcFNMw-GikdJ019_Uvg8gVGcoR1TRVJfY"
                 , expect = Http.expectJson loginDecoder
                 , headers = []
                 , timeout = Nothing
@@ -485,6 +481,7 @@ loginEncoder username password =
         params =
             [ ( "email", Encode.string username )
             , ( "password", Encode.string password )
+            , ( "returnSecureToken", Encode.bool True )
             ]
     in
         Encode.object params
@@ -492,7 +489,7 @@ loginEncoder username password =
 
 loginDecoder : Decode.Decoder Token
 loginDecoder =
-    Decode.at [ "token" ] Decode.string
+    Decode.at [ "idToken" ] Decode.string
 
 
 listRequest : Token -> Cmd Msg
@@ -502,9 +499,9 @@ listRequest token =
             Http.request
                 { method = "GET"
                 , body = Http.emptyBody
-                , url = "https://jsonplaceholder.typicode.com/comments"
+                , url = "http://localhost:5002/elm-receipts/us-central1/api/receipts/"
                 , expect = Http.expectJson listDecoder
-                , headers = []
+                , headers = [ Http.header "Authorization" ("Bearer " ++ token) ]
                 , timeout = Nothing
                 , withCredentials = False
                 }
@@ -520,7 +517,9 @@ listDecoder =
 listItemDecoder : Decode.Decoder Item
 listItemDecoder =
     decode Item
-        |> Json.Decode.Pipeline.required "postId" Decode.int
-        |> Json.Decode.Pipeline.required "id" Decode.int
-        |> Json.Decode.Pipeline.required "name" Decode.string
-        |> Json.Decode.Pipeline.required "body" Decode.string
+        |> Json.Decode.Pipeline.required "key" Decode.string
+        |> Json.Decode.Pipeline.required "amount" Decode.float
+        |> Json.Decode.Pipeline.required "typeId" Decode.int
+        |> Json.Decode.Pipeline.required "date" Decode.string
+        |> Json.Decode.Pipeline.required "description" Decode.string
+        |> Json.Decode.Pipeline.required "invoice" Decode.string
