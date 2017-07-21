@@ -1,3 +1,3 @@
-# SaveInvoice - app that saves my invoices written in Elm
+# SaveReceipts - app that saves my receipts written in Elm
 
 ## PWA

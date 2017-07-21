@@ -6,6 +6,7 @@ import Html.Events exposing (onClick, onInput, onSubmit)
 import Http
 import Json.Encode as Encode
 import Json.Decode as Decode
+import Json.Decode.Pipeline exposing (decode, required)
 
 
 -- APP
@@ -25,11 +26,19 @@ type alias Token =
 
 
 type alias Item =
-    { date : String
-    , amount : Float
-    , invoice : String
-    , description : String
+    { postId : Int
+    , id : Int
+    , name : String
+    , body : String
     }
+
+
+
+-- { date : String
+-- , amount : Float
+-- , invoice : String
+-- , description : String
+-- }
 
 
 type alias LoginPageModel =
@@ -68,6 +77,26 @@ type alias Model =
     }
 
 
+type alias Type =
+    { id : Int
+    , label : String
+    }
+
+
+types : List Type
+types =
+    [ { id = 1
+      , label = "Lunch"
+      }
+    , { id = 2
+      , label = "Transport"
+      }
+    , { id = 999
+      , label = "Other"
+      }
+    ]
+
+
 init : ( Model, Cmd Msg )
 init =
     ( model, Cmd.none )
@@ -100,10 +129,10 @@ model =
 
 emptyItem : Item
 emptyItem =
-    { date = ""
-    , amount = 0
-    , invoice = ""
-    , description = ""
+    { postId = 0
+    , id = 0
+    , name = ""
+    , body = ""
     }
 
 
@@ -135,6 +164,7 @@ type Msg
     = NoOp
     | SetPage Page
     | SetPageUpload
+    | SetPageLit
     | StartCapture
     | StopCapture String
     | LoginFormUsernameInput String
@@ -142,6 +172,7 @@ type Msg
     | LoginFormSubmit
     | LoginResponse (Result Http.Error Token)
     | ReceiveToken Token
+    | ListResponse (Result Http.Error (List Item))
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -159,6 +190,18 @@ update msg model =
 
             SetPageUpload ->
                 ( { model | page = UploadPage, uploadPage = updateCaptureStatus True model.uploadPage }, sendStartCapture True )
+
+            SetPageLit ->
+                let
+                    msg =
+                        case model.loginPage.token of
+                            Just token ->
+                                listRequest token
+
+                            _ ->
+                                Cmd.none
+                in
+                    ( { model | page = ListPage }, msg )
 
             StartCapture ->
                 ( { model | uploadPage = updateCaptureStatus True model.uploadPage }, sendStartCapture True )
@@ -213,6 +256,19 @@ update msg model =
                 in
                     ( { model | page = UploadPage, loginPage = newLoginPage }, Cmd.none )
 
+            ListResponse (Err error) ->
+                ( model, Cmd.none )
+
+            ListResponse (Ok list) ->
+                let
+                    oldPage =
+                        model.listPage
+
+                    newPage =
+                        { oldPage | items = list }
+                in
+                    ( { model | listPage = newPage }, Cmd.none )
+
 
 
 -- PORTS
@@ -247,7 +303,7 @@ view model =
     div []
         [ div []
             [ button [ onClick (SetPage LoginPage) ] [ text "login" ]
-            , button [ onClick (SetPage ListPage) ] [ text "List" ]
+            , button [ onClick SetPageLit ] [ text "List" ]
             , button [ onClick SetPageUpload ] [ text "upload" ]
             , button [ onClick (SetPage SettingsPage) ] [ text "settings" ]
             ]
@@ -313,7 +369,7 @@ loginPageView model =
 uploadPageView : UploadPageModel -> Html Msg
 uploadPageView model =
     div []
-        [ Html.form [ class "login-form", onSubmit LoginFormSubmit ]
+        [ Html.form [ class "login-form", onSubmit NoOp ]
             [ fieldset []
                 [ legend [] [ text "Upload form" ]
                 , div []
@@ -335,7 +391,11 @@ uploadPageView model =
                     ]
                 , div []
                     [ label [] [ text "type" ]
-                    , select [] []
+                    , select []
+                        (typeToSelectOptions
+                            types
+                            999
+                        )
                     ]
                 , div []
                     [ label [] [ text "Amount" ]
@@ -374,7 +434,8 @@ settingsPageView model =
 listPageView : ListPageModel -> Html Msg
 listPageView model =
     div []
-        [ text "list page"
+        [ text "Fake list"
+        , ul [] (List.map (\item -> li [] [ text item.name ]) model.items)
         ]
 
 
@@ -390,6 +451,11 @@ capturePageView =
 updateCaptureStatus : Bool -> UploadPageModel -> UploadPageModel
 updateCaptureStatus status page =
     { page | isCapturing = status }
+
+
+typeToSelectOptions : List Type -> Int -> List (Html Msg)
+typeToSelectOptions types selectedID =
+    List.map (\item -> option [ value <| toString item.id, selected (selectedID == item.id) ] [ text item.label ]) types
 
 
 
@@ -427,3 +493,34 @@ loginEncoder username password =
 loginDecoder : Decode.Decoder Token
 loginDecoder =
     Decode.at [ "token" ] Decode.string
+
+
+listRequest : Token -> Cmd Msg
+listRequest token =
+    let
+        req =
+            Http.request
+                { method = "GET"
+                , body = Http.emptyBody
+                , url = "https://jsonplaceholder.typicode.com/comments"
+                , expect = Http.expectJson listDecoder
+                , headers = []
+                , timeout = Nothing
+                , withCredentials = False
+                }
+    in
+        Http.send ListResponse req
+
+
+listDecoder : Decode.Decoder (List Item)
+listDecoder =
+    Decode.list listItemDecoder
+
+
+listItemDecoder : Decode.Decoder Item
+listItemDecoder =
+    decode Item
+        |> Json.Decode.Pipeline.required "postId" Decode.int
+        |> Json.Decode.Pipeline.required "id" Decode.int
+        |> Json.Decode.Pipeline.required "name" Decode.string
+        |> Json.Decode.Pipeline.required "body" Decode.string
