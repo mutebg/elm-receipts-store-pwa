@@ -79,6 +79,7 @@ elmApp.ports.sendStartCapture.subscribe(event => {
       captureBtn.addEventListener(
         "click",
         () => {
+          elmApp.ports.receiveLoadingIndicator.send(true);
           capture(videoEl, canvasEl).then(blobImage => {
             saveImage(blobImage)
               .then(response => response.json())

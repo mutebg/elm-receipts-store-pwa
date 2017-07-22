@@ -151,6 +151,7 @@ subscriptions model =
     Sub.batch
         [ receiveStartCapture StopCapture
         , receiveToken ReceiveToken
+        , receiveLoadingIndicator SetLoading
         ]
 
 
@@ -163,16 +164,17 @@ type Msg
     | SetPage Page
     | SetPageUpload
     | SetPageLit
-    | StartCapture
-    | StopCapture Item
-    | LoginFormUsernameInput String
-    | LoginFormPasswordInput String
+    | LoginFormChangeInput String String
     | LoginFormSubmit
     | LoginResponse (Result Http.Error Token)
     | ReceiveToken Token
     | ListResponse (Result Http.Error (List Item))
+    | UploadFormChangeInput String String
     | StartUpload
+    | SetLoading Bool
     | UploadResponse (Result Http.Error Item)
+    | StartCapture
+    | StopCapture Item
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -203,6 +205,16 @@ update msg model =
                 in
                     ( { model | page = ListPage }, msg )
 
+            SetLoading status ->
+                let
+                    newPageWithStatus =
+                        updateCaptureStatus False model.uploadPage
+
+                    newPageWithLoading =
+                        updateUploadLoading status newPageWithStatus
+                in
+                    ( { model | uploadPage = newPageWithLoading }, Cmd.none )
+
             StartCapture ->
                 ( { model | uploadPage = updateCaptureStatus True model.uploadPage }, sendStartCapture True )
 
@@ -213,20 +225,27 @@ update msg model =
 
                     newPageWithItem =
                         updateCaptureItem item newPageWithStatus
-                in
-                    ( { model | uploadPage = newPageWithItem }, Cmd.none )
 
-            LoginFormUsernameInput usernameInput ->
-                let
-                    newLoginPage =
-                        { oldLoginPage | username = usernameInput }
+                    newPageWithLoading =
+                        updateUploadLoading False newPageWithItem
                 in
-                    ( { model | loginPage = newLoginPage }, Cmd.none )
+                    ( { model | uploadPage = newPageWithLoading }, Cmd.none )
 
-            LoginFormPasswordInput passwordInput ->
+            LoginFormChangeInput inputName inputValue ->
                 let
+                    oldLoginPage =
+                        model.loginPage
+
                     newLoginPage =
-                        { oldLoginPage | password = passwordInput }
+                        case inputName of
+                            "password" ->
+                                { oldLoginPage | password = inputValue }
+
+                            "username" ->
+                                { oldLoginPage | username = inputValue }
+
+                            _ ->
+                                oldLoginPage
                 in
                     ( { model | loginPage = newLoginPage }, Cmd.none )
 
@@ -288,6 +307,36 @@ update msg model =
                 in
                     ( model, msg )
 
+            UploadFormChangeInput inputName inputValue ->
+                let
+                    oldPage =
+                        model.uploadPage
+
+                    oldItem =
+                        oldPage.item
+
+                    newItem =
+                        case inputName of
+                            "amount" ->
+                                { oldItem | amount = Result.withDefault 0 (String.toFloat inputValue) }
+
+                            "date" ->
+                                { oldItem | date = inputValue }
+
+                            "typeId" ->
+                                { oldItem | typeId = 1 }
+
+                            "description" ->
+                                { oldItem | description = inputValue }
+
+                            _ ->
+                                oldItem
+
+                    newPage =
+                        { oldPage | item = newItem }
+                in
+                    ( { model | uploadPage = newPage }, Cmd.none )
+
             UploadResponse (Ok item) ->
                 ( model, Cmd.none )
 
@@ -315,6 +364,9 @@ port sendStartCapture : Bool -> Cmd msg
 
 
 port receiveStartCapture : (Item -> msg) -> Sub msg
+
+
+port receiveLoadingIndicator : (Bool -> msg) -> Sub msg
 
 
 
@@ -370,7 +422,7 @@ loginPageView model =
                 , input
                     [ type_ "text"
                     , value model.username
-                    , onInput LoginFormUsernameInput
+                    , onInput (LoginFormChangeInput "username")
                     ]
                     []
                 ]
@@ -379,7 +431,7 @@ loginPageView model =
                 , input
                     [ type_ "password"
                     , value model.password
-                    , onInput LoginFormPasswordInput
+                    , onInput (LoginFormChangeInput "password")
                     ]
                     []
                 ]
@@ -393,59 +445,78 @@ loginPageView model =
 
 uploadPageView : UploadPageModel -> Html Msg
 uploadPageView model =
-    div []
-        [ Html.form [ class "login-form", onSubmit StartUpload ]
-            [ fieldset []
-                [ legend [] [ text "Upload form" ]
-                , div []
-                    [ button [ onClick StartCapture ] [ text "retake" ]
-                    ]
-                , div []
-                    [ img [ src model.item.invoice ] []
-                    ]
-                , div []
-                    [ label [] [ text "date" ]
-                    , input
-                        [ type_ "date"
-                        , value model.item.date
+    let
+        currentDisplay =
+            if model.isCapturing then
+                "block"
+            else
+                "none"
+    in
+        div []
+            [ if model.isLoading then
+                div [] [ text "is loading..." ]
+              else
+                text ""
+            , Html.form [ class "login-form", onSubmit StartUpload ]
+                [ fieldset []
+                    [ legend [] [ text "Upload form" ]
+                    , div []
+                        [ button [ onClick StartCapture, type_ "button" ] [ text "retake" ]
                         ]
-                        []
-                    ]
-                , div []
-                    [ label [] [ text "type" ]
-                    , select []
-                        (typeToSelectOptions
-                            types
-                            model.item.typeId
-                        )
-                    ]
-                , div []
-                    [ label [] [ text "Amount" ]
-                    , input
-                        [ type_ "number"
-                        , value (toString model.item.amount)
+                    , div []
+                        [ img [ src model.item.invoice ] []
                         ]
-                        []
-                    ]
-                , div []
-                    [ label [] [ text "Description" ]
-                    , input
-                        [ type_ "text"
-                        , value model.item.description
+                    , div []
+                        [ label [] [ text "date" ]
+                        , input
+                            [ type_ "date"
+                            , value model.item.date
+                            , onInput (UploadFormChangeInput "date")
+                            ]
+                            []
                         ]
-                        []
-                    ]
-                , div []
-                    [ label [] []
-                    , button [ type_ "submit" ] [ text "Save" ]
+                    , div []
+                        [ label [] [ text "type" ]
+                        , select
+                            [ onInput (UploadFormChangeInput "type")
+                            ]
+                            (typeToSelectOptions
+                                types
+                                model.item.typeId
+                            )
+                        ]
+                    , div []
+                        [ label [] [ text "Amount" ]
+                        , input
+                            [ type_ "number"
+                            , step "0.01"
+                            , value (toString model.item.amount)
+                            , onInput (UploadFormChangeInput "amount")
+                            ]
+                            []
+                        ]
+                    , div []
+                        [ label [] [ text "Description" ]
+                        , input
+                            [ type_ "text"
+                            , value model.item.description
+                            , onInput (UploadFormChangeInput "description")
+                            ]
+                            []
+                        ]
+                    , div []
+                        [ label [] []
+                        , button [ type_ "submit" ] [ text "Save" ]
+                        ]
                     ]
                 ]
+            , div
+                [ style [ ( "display", currentDisplay ) ] ]
+                [ video [ id "video", class "camera-video" ] []
+                , canvas [ id "canvas", class "canvas" ] []
+                , button [ id "capture", class "camera-capture" ] []
+                ]
             ]
-        , if model.isCapturing then
-            capturePageView
-          else
-            text ""
-        ]
 
 
 settingsPageView : SettingsPageModel -> Html Msg
@@ -458,23 +529,27 @@ settingsPageView model =
 listPageView : ListPageModel -> Html Msg
 listPageView model =
     div []
-        [ text "Fake list"
-        , ul [] (List.map (\item -> li [] [ text item.description ]) model.items)
+        [ ul [] (List.map listItemView model.items)
         ]
 
 
-capturePageView : Html Msg
-capturePageView =
-    div []
-        [ video [ id "video", class "camera-video" ] []
-        , canvas [ id "canvas", class "canvas" ] []
-        , button [ id "capture", class "camera-capture" ] []
+listItemView : Item -> Html Msg
+listItemView item =
+    li []
+        [ div [] [ text item.date ]
+        , div [] [ text <| typeIdToText item.typeId ]
+        , div [] [ text ("amount:" ++ toString (item.amount)) ]
         ]
 
 
 updateCaptureStatus : Bool -> UploadPageModel -> UploadPageModel
 updateCaptureStatus status page =
     { page | isCapturing = status }
+
+
+updateUploadLoading : Bool -> UploadPageModel -> UploadPageModel
+updateUploadLoading status page =
+    { page | isLoading = status }
 
 
 updateCaptureItem : Item -> UploadPageModel -> UploadPageModel
@@ -485,6 +560,23 @@ updateCaptureItem newItem page =
 typeToSelectOptions : List Type -> Int -> List (Html Msg)
 typeToSelectOptions types selectedID =
     List.map (\item -> option [ value <| toString item.id, selected (selectedID == item.id) ] [ text item.label ]) types
+
+
+typeIdToText : Int -> String
+typeIdToText typeId =
+    let
+        filteredList =
+            List.filter (\i -> i.id == typeId) types
+
+        first =
+            List.head filteredList
+    in
+        case first of
+            Just i ->
+                i.label
+
+            Nothing ->
+                "No Type"
 
 
 
