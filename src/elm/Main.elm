@@ -52,6 +52,7 @@ type alias LoginPageModel =
 type alias UploadPageModel =
     { item : Item
     , isCapturing : Bool
+    , isLoading : Bool
     , error : Maybe String
     }
 
@@ -108,6 +109,7 @@ model =
     , uploadPage =
         { item = emptyItem
         , isCapturing = False
+        , isLoading = False
         , error = Nothing
         }
     , settingsPage =
@@ -162,13 +164,15 @@ type Msg
     | SetPageUpload
     | SetPageLit
     | StartCapture
-    | StopCapture String
+    | StopCapture Item
     | LoginFormUsernameInput String
     | LoginFormPasswordInput String
     | LoginFormSubmit
     | LoginResponse (Result Http.Error Token)
     | ReceiveToken Token
     | ListResponse (Result Http.Error (List Item))
+    | StartUpload
+    | UploadResponse (Result Http.Error Item)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -202,8 +206,15 @@ update msg model =
             StartCapture ->
                 ( { model | uploadPage = updateCaptureStatus True model.uploadPage }, sendStartCapture True )
 
-            StopCapture k ->
-                ( { model | uploadPage = updateCaptureStatus False model.uploadPage }, Cmd.none )
+            StopCapture item ->
+                let
+                    newPageWithStatus =
+                        updateCaptureStatus False model.uploadPage
+
+                    newPageWithItem =
+                        updateCaptureItem item newPageWithStatus
+                in
+                    ( { model | uploadPage = newPageWithItem }, Cmd.none )
 
             LoginFormUsernameInput usernameInput ->
                 let
@@ -265,6 +276,24 @@ update msg model =
                 in
                     ( { model | listPage = newPage }, Cmd.none )
 
+            StartUpload ->
+                let
+                    msg =
+                        case model.loginPage.token of
+                            Just token ->
+                                uploadRequest model.uploadPage.item token
+
+                            _ ->
+                                Cmd.none
+                in
+                    ( model, msg )
+
+            UploadResponse (Ok item) ->
+                ( model, Cmd.none )
+
+            UploadResponse (Err error) ->
+                ( model, Cmd.none )
+
 
 
 -- PORTS
@@ -285,7 +314,7 @@ port receiveSettings : (Item -> msg) -> Sub msg
 port sendStartCapture : Bool -> Cmd msg
 
 
-port receiveStartCapture : (String -> msg) -> Sub msg
+port receiveStartCapture : (Item -> msg) -> Sub msg
 
 
 
@@ -337,7 +366,7 @@ loginPageView model =
         , fieldset []
             [ legend [] [ text "Login" ]
             , div []
-                [ label [] [ text ("User Name" ++ model.username) ]
+                [ label [] [ text "User Name" ]
                 , input
                     [ type_ "text"
                     , value model.username
@@ -365,23 +394,20 @@ loginPageView model =
 uploadPageView : UploadPageModel -> Html Msg
 uploadPageView model =
     div []
-        [ Html.form [ class "login-form", onSubmit NoOp ]
+        [ Html.form [ class "login-form", onSubmit StartUpload ]
             [ fieldset []
                 [ legend [] [ text "Upload form" ]
                 , div []
                     [ button [ onClick StartCapture ] [ text "retake" ]
                     ]
                 , div []
-                    [ label [] [ text "file" ]
-                    , input
-                        [ type_ "file"
-                        ]
-                        []
+                    [ img [ src model.item.invoice ] []
                     ]
                 , div []
                     [ label [] [ text "date" ]
                     , input
                         [ type_ "date"
+                        , value model.item.date
                         ]
                         []
                     ]
@@ -390,13 +416,14 @@ uploadPageView model =
                     , select []
                         (typeToSelectOptions
                             types
-                            999
+                            model.item.typeId
                         )
                     ]
                 , div []
                     [ label [] [ text "Amount" ]
                     , input
                         [ type_ "number"
+                        , value (toString model.item.amount)
                         ]
                         []
                     ]
@@ -404,6 +431,7 @@ uploadPageView model =
                     [ label [] [ text "Description" ]
                     , input
                         [ type_ "text"
+                        , value model.item.description
                         ]
                         []
                     ]
@@ -447,6 +475,11 @@ capturePageView =
 updateCaptureStatus : Bool -> UploadPageModel -> UploadPageModel
 updateCaptureStatus status page =
     { page | isCapturing = status }
+
+
+updateCaptureItem : Item -> UploadPageModel -> UploadPageModel
+updateCaptureItem newItem page =
+    { page | item = newItem }
 
 
 typeToSelectOptions : List Type -> Int -> List (Html Msg)
@@ -511,11 +544,11 @@ listRequest token =
 
 listDecoder : Decode.Decoder (List Item)
 listDecoder =
-    Decode.list listItemDecoder
+    Decode.list itemDecoder
 
 
-listItemDecoder : Decode.Decoder Item
-listItemDecoder =
+itemDecoder : Decode.Decoder Item
+itemDecoder =
     decode Item
         |> Json.Decode.Pipeline.required "key" Decode.string
         |> Json.Decode.Pipeline.required "amount" Decode.float
@@ -523,3 +556,34 @@ listItemDecoder =
         |> Json.Decode.Pipeline.required "date" Decode.string
         |> Json.Decode.Pipeline.required "description" Decode.string
         |> Json.Decode.Pipeline.required "invoice" Decode.string
+
+
+uploadRequest : Item -> Token -> Cmd Msg
+uploadRequest item token =
+    let
+        req =
+            Http.request
+                { method = "POST"
+                , body = uploadEncoder item |> Http.jsonBody
+                , url = "http://localhost:5002/elm-receipts/us-central1/api/receipts/"
+                , expect = Http.expectJson itemDecoder
+                , headers = [ Http.header "Authorization" ("Bearer " ++ token) ]
+                , timeout = Nothing
+                , withCredentials = False
+                }
+    in
+        Http.send UploadResponse req
+
+
+uploadEncoder : Item -> Encode.Value
+uploadEncoder item =
+    let
+        params =
+            [ ( "amount", Encode.float item.amount )
+            , ( "typeId", Encode.int item.typeId )
+            , ( "date", Encode.string item.date )
+            , ( "description", Encode.string item.description )
+            , ( "invoice", Encode.string item.invoice )
+            ]
+    in
+        Encode.object params

@@ -22,12 +22,14 @@ const init = () => {
   }
 };
 
-const capture = (video, canvas) => {
-  const ctx = canvas.getContext("2d");
-  ctx.drawImage(video, 0, 0);
-  var dataURL = canvas.toDataURL("image/png");
-  return dataURL;
-};
+const capture = (video, canvas) =>
+  new Promise((resolve, reject) => {
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0);
+    canvas.toBlob(blob => {
+      resolve(blob);
+    });
+  });
 
 const startVideo = video =>
   new Promise((resolve, reject) => {
@@ -50,7 +52,22 @@ const startVideo = video =>
 
 const stopVideo = (stream, video) => {
   video.pause();
-  stream.stop();
+  stream.getVideoTracks()[0].stop();
+};
+
+const saveImage = blobImage => {
+  const formData = new FormData();
+  formData.append("file", blobImage);
+
+  const headers = new Headers();
+  //headers.append("Content-Type", "text/plain");
+  //headers.append("Content-Length", content.length.toString());
+  headers.append("Authorization", "Bearer " + localStorage.getItem("token"));
+  return fetch("http://localhost:5002/elm-receipts/us-central1/api/upload/", {
+    method: "POST",
+    headers: headers,
+    body: formData
+  });
 };
 
 elmApp.ports.sendStartCapture.subscribe(event => {
@@ -62,9 +79,22 @@ elmApp.ports.sendStartCapture.subscribe(event => {
       captureBtn.addEventListener(
         "click",
         () => {
-          const image = capture(videoEl, canvasEl);
-          elmApp.ports.receiveStartCapture.send(image);
-          stop(stream, video);
+          capture(videoEl, canvasEl).then(blobImage => {
+            saveImage(blobImage)
+              .then(response => response.json())
+              .then(json => {
+                console.log(json);
+                elmApp.ports.receiveStartCapture.send({
+                  key: "",
+                  amount: json.amount,
+                  typeId: 999,
+                  date: new Date().toString(),
+                  description: "",
+                  invoice: json.fileUrl
+                });
+                stopVideo(stream, video);
+              });
+          });
         },
         false
       );

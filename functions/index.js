@@ -2,8 +2,25 @@ const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const express = require("express");
 const cors = require("cors");
+const Multer = require("multer");
+const gcloud = require("google-cloud")({
+  projectId: "elm-receipts",
+  keyFilename: "firebase-key.json"
+});
+const uuidv4 = require("uuid/v4");
+const fs = require("fs");
+const bodyParser = require("body-parser");
 
+const storage = gcloud.storage();
+const vision = gcloud.vision();
 const app = express();
+
+const CLOUD_BUCKET = "elm-receipts.appspot.com";
+
+const multer = Multer({
+  storage: Multer.MemoryStorage,
+  fileSize: 5 * 1024 * 1024
+});
 
 admin.initializeApp(functions.config().firebase);
 
@@ -34,6 +51,8 @@ const authenticate = (req, res, next) => {
 
 app.use(cors());
 app.use(authenticate);
+//app.use(bodyParser.json()); // for parsing application/json
+//app.use(bodyParser.urlencoded({ extended: true })); // for parsing application/x-www-form-urlencoded
 
 // POST /api/receipts
 // Create a new receipts
@@ -127,8 +146,42 @@ app.delete("/receipts/:receiptsId", (req, res) => {
 });
 
 // Upload receipt image
-app.post("/upload", (req, res) => {
-  return res.status(200).json({ done: true });
+app.post("/upload", multer.any(), (req, res) => {
+  const file = req.files[0];
+  const bucket = storage.bucket(CLOUD_BUCKET);
+  const gcsname = uuidv4();
+  const files = bucket.file(gcsname);
+
+  const stream = files.createWriteStream({
+    metadata: {
+      contentType: file.mimetype
+    }
+  });
+
+  stream.on("error", err => {
+    console.log(err);
+  });
+
+  stream.on("finish", () => {
+    files.makePublic().then(() => {
+      const fileUrl = `https://storage.googleapis.com/${CLOUD_BUCKET}/${gcsname}`;
+
+      vision.readDocument(fileUrl, (err, text, apiResponse) => {
+        if (err) {
+          console.log("err", err);
+        }
+        console.log("done");
+        // text = 'This paragraph was extracted from image.jpg';
+        res.json({
+          //text: text,
+          amount: 4.15,
+          fileUrl: fileUrl
+        });
+      });
+    });
+  });
+
+  stream.end(file.buffer);
 });
 
 // Expose the API as a function
