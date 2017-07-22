@@ -70,35 +70,39 @@ const saveImage = blobImage => {
   });
 };
 
+let videoGlobal;
+let canvasGlobal;
+let streamGlobal;
+
+elmApp.ports.sendStopCapture.subscribe(event => {
+  stopVideo(streamGlobal, videoGlobal);
+});
+
+elmApp.ports.sendTakePicture.subscribe(event => {
+  capture(videoGlobal, canvasGlobal).then(blobImage => {
+    saveImage(blobImage).then(response => response.json()).then(json => {
+      console.log(json);
+      elmApp.ports.receiveStartCapture.send({
+        key: "",
+        amount: json.amount,
+        typeId: 999,
+        date: new Date().toString(),
+        description: "",
+        invoice: json.fileUrl
+      });
+      stopVideo(streamGlobal, videoGlobal);
+    });
+  });
+});
+
 elmApp.ports.sendStartCapture.subscribe(event => {
   requestAnimationFrame(() => {
-    var videoEl = document.querySelector("#video");
-    var canvasEl = document.querySelector("#canvas");
-    var captureBtn = document.querySelector("#capture");
-    startVideo(videoEl).then(stream => {
-      captureBtn.addEventListener(
-        "click",
-        () => {
-          elmApp.ports.receiveLoadingIndicator.send(true);
-          capture(videoEl, canvasEl).then(blobImage => {
-            saveImage(blobImage)
-              .then(response => response.json())
-              .then(json => {
-                console.log(json);
-                elmApp.ports.receiveStartCapture.send({
-                  key: "",
-                  amount: json.amount,
-                  typeId: 999,
-                  date: new Date().toString(),
-                  description: "",
-                  invoice: json.fileUrl
-                });
-                stopVideo(stream, video);
-              });
-          });
-        },
-        false
-      );
+    videoGlobal = document.querySelector("#video");
+    canvasGlobal = document.querySelector("#canvas");
+    canvasGlobal.width = videoGlobal.offsetWidth;
+    canvasGlobal.height = videoGlobal.offsetHeight;
+    startVideo(videoGlobal).then(stream => {
+      streamGlobal = stream;
     });
   });
 });

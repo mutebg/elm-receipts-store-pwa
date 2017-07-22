@@ -63,17 +63,10 @@ type alias ListPageModel =
     }
 
 
-type alias SettingsPageModel =
-    { item : Item
-    , error : Maybe String
-    }
-
-
 type alias Model =
     { page : Page
     , loginPage : LoginPageModel
     , uploadPage : UploadPageModel
-    , settingsPage : SettingsPageModel
     , listPage : ListPageModel
     }
 
@@ -112,10 +105,6 @@ model =
         , isLoading = False
         , error = Nothing
         }
-    , settingsPage =
-        { item = emptyItem
-        , error = Nothing
-        }
     , listPage =
         { items = []
         , error = Nothing
@@ -139,7 +128,6 @@ type Page
     | UploadPage
     | ListPage
     | LoginPage
-    | SettingsPage
 
 
 
@@ -151,7 +139,6 @@ subscriptions model =
     Sub.batch
         [ receiveStartCapture StopCapture
         , receiveToken ReceiveToken
-        , receiveLoadingIndicator SetLoading
         ]
 
 
@@ -171,10 +158,11 @@ type Msg
     | ListResponse (Result Http.Error (List Item))
     | UploadFormChangeInput String String
     | StartUpload
-    | SetLoading Bool
     | UploadResponse (Result Http.Error Item)
     | StartCapture
+    | TakePicture
     | StopCapture Item
+    | CancelCapture
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -205,18 +193,25 @@ update msg model =
                 in
                     ( { model | page = ListPage }, msg )
 
-            SetLoading status ->
+            StartCapture ->
+                ( { model | uploadPage = updateCaptureStatus True model.uploadPage }, sendStartCapture True )
+
+            TakePicture ->
                 let
                     newPageWithStatus =
                         updateCaptureStatus False model.uploadPage
 
                     newPageWithLoading =
-                        updateUploadLoading status newPageWithStatus
+                        updateUploadLoading True newPageWithStatus
                 in
-                    ( { model | uploadPage = newPageWithLoading }, Cmd.none )
+                    ( { model | uploadPage = newPageWithLoading }, sendTakePicture True )
 
-            StartCapture ->
-                ( { model | uploadPage = updateCaptureStatus True model.uploadPage }, sendStartCapture True )
+            CancelCapture ->
+                let
+                    newPageWithStatus =
+                        updateCaptureStatus False model.uploadPage
+                in
+                    ( { model | uploadPage = newPageWithStatus }, sendStopCapture True )
 
             StopCapture item ->
                 let
@@ -354,19 +349,16 @@ port sendToken : Token -> Cmd msg
 port receiveToken : (Token -> msg) -> Sub msg
 
 
-port sendSettings : Item -> Cmd msg
-
-
-port receiveSettings : (Item -> msg) -> Sub msg
-
-
 port sendStartCapture : Bool -> Cmd msg
 
 
+port sendStopCapture : Bool -> Cmd msg
+
+
+port sendTakePicture : Bool -> Cmd msg
+
+
 port receiveStartCapture : (Item -> msg) -> Sub msg
-
-
-port receiveLoadingIndicator : (Bool -> msg) -> Sub msg
 
 
 
@@ -378,18 +370,14 @@ port receiveLoadingIndicator : (Bool -> msg) -> Sub msg
 view : Model -> Html Msg
 view model =
     div []
-        [ div []
+        [ div [ class "nav" ]
             [ button [ onClick (SetPage LoginPage) ] [ text "login" ]
             , button [ onClick SetPageLit ] [ text "List" ]
             , button [ onClick SetPageUpload ] [ text "upload" ]
-            , button [ onClick (SetPage SettingsPage) ] [ text "settings" ]
             ]
         , case model.page of
             LoginPage ->
                 loginPageView model.loginPage
-
-            SettingsPage ->
-                settingsPageView model.settingsPage
 
             UploadPage ->
                 uploadPageView model.uploadPage
@@ -404,7 +392,7 @@ view model =
 
 loginPageView : LoginPageModel -> Html Msg
 loginPageView model =
-    Html.form [ class "login-form", onSubmit LoginFormSubmit ]
+    Html.form [ class "login", onSubmit LoginFormSubmit ]
         [ div []
             [ text
                 (case model.error of
@@ -415,30 +403,27 @@ loginPageView model =
                         msg
                 )
             ]
-        , fieldset []
-            [ legend [] [ text "Login" ]
-            , div []
-                [ label [] [ text "User Name" ]
-                , input
-                    [ type_ "text"
-                    , value model.username
-                    , onInput (LoginFormChangeInput "username")
-                    ]
-                    []
+        , div []
+            [ label [] [ text "User Name" ]
+            , input
+                [ type_ "text"
+                , value model.username
+                , onInput (LoginFormChangeInput "username")
                 ]
-            , div []
-                [ label [] [ text "Password" ]
-                , input
-                    [ type_ "password"
-                    , value model.password
-                    , onInput (LoginFormChangeInput "password")
-                    ]
-                    []
+                []
+            ]
+        , div []
+            [ label [] [ text "Password" ]
+            , input
+                [ type_ "password"
+                , value model.password
+                , onInput (LoginFormChangeInput "password")
                 ]
-            , div []
-                [ label [] []
-                , button [ type_ "submit" ] [ text "Login" ]
-                ]
+                []
+            ]
+        , div []
+            [ label [] []
+            , button [ type_ "submit" ] [ text "Login" ]
             ]
         ]
 
@@ -514,16 +499,10 @@ uploadPageView model =
                 [ style [ ( "display", currentDisplay ) ] ]
                 [ video [ id "video", class "camera-video" ] []
                 , canvas [ id "canvas", class "canvas" ] []
-                , button [ id "capture", class "camera-capture" ] []
+                , button [ class "camera-capture", onClick TakePicture ] []
+                , button [ class "camera-stop", onClick CancelCapture ] []
                 ]
             ]
-
-
-settingsPageView : SettingsPageModel -> Html Msg
-settingsPageView model =
-    div []
-        [ text "settings page"
-        ]
 
 
 listPageView : ListPageModel -> Html Msg

@@ -1,3 +1,28 @@
+*,
+*:before,
+*:after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+html,
+body {
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  padding-top: 50px;
+}
+
+.nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 10;
+}
+
 .camera-video {
   width: 100vw;
   height: 100vh;
