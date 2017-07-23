@@ -10,7 +10,7 @@ before_script:
   - npm install -g firebase-tools
   - npm install -g elm
   - npm install
-  - elm package install
+  - elm package install --yes
 
 script:
   - npm run build
