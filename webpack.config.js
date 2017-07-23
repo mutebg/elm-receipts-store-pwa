@@ -133,7 +133,7 @@ if (isProd === true) {
         background_color: "#ffffff",
         icons: [
           {
-            src: path.resolve("src/static/elm.jpg"),
+            src: path.resolve("src/static/img/elm.jpg"),
             sizes: [96, 128, 192, 256, 384, 512] // multiple sizes
           }
         ]
