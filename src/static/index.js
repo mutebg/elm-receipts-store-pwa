@@ -6,7 +6,6 @@ var Elm = require("../elm/Main");
 var elmApp = Elm.Main.embed(document.getElementById("main"));
 
 elmApp.ports.sendToken.subscribe(token => {
-  console.log({ token });
   localStorage.setItem("token", token);
 });
 
@@ -63,11 +62,14 @@ const saveImage = blobImage => {
   //headers.append("Content-Type", "text/plain");
   //headers.append("Content-Length", content.length.toString());
   headers.append("Authorization", "Bearer " + localStorage.getItem("token"));
-  return fetch("http://localhost:5002/elm-receipts/us-central1/api/upload/", {
-    method: "POST",
-    headers: headers,
-    body: formData
-  });
+  return fetch(
+    "https://us-central1-elm-receipts.cloudfunctions.net/api/upload/",
+    {
+      method: "POST",
+      headers: headers,
+      body: formData
+    }
+  );
 };
 
 let videoGlobal;

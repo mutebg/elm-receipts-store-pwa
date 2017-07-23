@@ -75,7 +75,7 @@ listRequest token =
             Http.request
                 { method = "GET"
                 , body = Http.emptyBody
-                , url = "http://localhost:5002/elm-receipts/us-central1/api/receipts/"
+                , url = Data.apiUrl "receipts/"
                 , expect = Http.expectJson listDecoder
                 , headers = [ Http.header "Authorization" ("Bearer " ++ token) ]
                 , timeout = Nothing

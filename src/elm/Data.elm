@@ -1,6 +1,18 @@
 port module Data exposing (..)
 
 
+cfg :
+    { api_url : String
+    }
+cfg =
+    if False then
+        { api_url = "http://localhost:5002/elm-receipts/us-central1/api/"
+        }
+    else
+        { api_url = "https://us-central1-elm-receipts.cloudfunctions.net/api/"
+        }
+
+
 type alias Token =
     String
 
@@ -44,6 +56,11 @@ emptyItem =
     , description = ""
     , invoice = ""
     }
+
+
+apiUrl : String -> String
+apiUrl str =
+    cfg.api_url ++ str
 
 
 
