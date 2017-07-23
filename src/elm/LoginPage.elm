@@ -7,7 +7,6 @@ import Http
 import Data exposing (Token)
 import Json.Encode as Encode
 import Json.Decode as Decode
-import Json.Decode.Pipeline exposing (decode, required)
 
 
 type alias Model =
@@ -59,7 +58,16 @@ update msg model =
             ( { model | error = Nothing, token = Just token }, Data.sendToken token )
 
         LoginResponse (Err error) ->
-            ( { model | error = Just "wrong username or password", token = Nothing }, Cmd.none )
+            let
+                errMsg =
+                    case error of
+                        Http.BadStatus resp ->
+                            Result.withDefault "Login Error!" (Decode.decodeString (Decode.at [ "error", "message" ] Decode.string) resp.body)
+
+                        _ ->
+                            "Login Error!"
+            in
+                ( { model | error = Just errMsg, token = Nothing }, Cmd.none )
 
         ReceiveToken token ->
             ( { model | error = Nothing, token = Just token }, Cmd.none )
@@ -135,6 +143,11 @@ loginEncoder username password =
 loginDecoder : Decode.Decoder Token
 loginDecoder =
     Decode.at [ "idToken" ] Decode.string
+
+
+errorDecoder : Decode.Decoder String
+errorDecoder =
+    Decode.at [ "error", "message" ] Decode.string
 
 
 subscriptions : Model -> Sub Msg

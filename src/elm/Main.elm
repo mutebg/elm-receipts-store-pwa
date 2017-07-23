@@ -6,7 +6,6 @@ import Html.Events exposing (onClick, onInput, onSubmit)
 import LoginPage as PLogin exposing (..)
 import ListPage as PList exposing (..)
 import UploadPage as PUpload exposing (..)
-import Data exposing (..)
 
 
 -- APP

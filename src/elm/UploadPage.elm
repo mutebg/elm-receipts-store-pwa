@@ -44,29 +44,25 @@ update msg model token =
 
         TakePicture ->
             let
-                modelWithStatus =
-                    updateCaptureStatus False model
-
-                modelWithLoading =
-                    updateUploadLoading True modelWithStatus
+                newModel =
+                    model
+                        |> updateCaptureStatus False
+                        |> updateUploadLoading True
             in
-                ( modelWithLoading, Data.sendTakePicture True )
+                ( newModel, Data.sendTakePicture True )
 
         CancelCapture ->
             ( updateCaptureStatus False model, Data.sendStopCapture True )
 
         StopCapture item ->
             let
-                modelWithStatus =
-                    updateCaptureStatus False model
-
-                modelWithItem =
-                    updateCaptureItem item modelWithStatus
-
-                modelWithLoading =
-                    updateUploadLoading False modelWithItem
+                newModel =
+                    model
+                        |> updateCaptureStatus False
+                        |> updateCaptureItem item
+                        |> updateUploadLoading False
             in
-                ( modelWithLoading, Cmd.none )
+                ( newModel, Cmd.none )
 
         StartUpload ->
             let
