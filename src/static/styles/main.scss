@@ -33,13 +33,24 @@ body {
   background: #fff;
 }
 
-.camera-capture {
+.camera-capture,
+.camera-stop {
   position: absolute;
   width: 60px;
   height: 60px;
   bottom: 20px;
-  left: calc(50% - 30px);
-  border-radius: 50%;
-  background: red;
   z-index: 2;
+  border-radius: 50%;
+  border: 0;
+}
+
+.camera-capture {
+  left: calc(50% - 30px);
+  background: red;
+}
+
+.camera-stop {
+  background: #000;
+  right: 20px;
+  transform: scale(0.7);
 }

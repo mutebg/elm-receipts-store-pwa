@@ -6,6 +6,7 @@ var autoprefixer = require("autoprefixer");
 var ExtractTextPlugin = require("extract-text-webpack-plugin");
 var CopyWebpackPlugin = require("copy-webpack-plugin");
 var BabiliPlugin = require("babili-webpack-plugin");
+var WebpackPwaManifest = require("webpack-pwa-manifest");
 
 const prod = "production";
 const dev = "development";
@@ -124,7 +125,19 @@ if (isProd === true) {
           from: "src/favicon.ico"
         }
       ]),
-      new BabiliPlugin()
+      new BabiliPlugin(),
+      new WebpackPwaManifest({
+        name: "InvocePWA",
+        short_name: "InvocePWA",
+        description: "Save my invoices",
+        background_color: "#ffffff",
+        icons: [
+          {
+            src: path.resolve("src/static/elm.jpg"),
+            sizes: [96, 128, 192, 256, 384, 512] // multiple sizes
+          }
+        ]
+      })
     ]
   });
 }
