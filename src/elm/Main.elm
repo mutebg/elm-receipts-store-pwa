@@ -3,10 +3,10 @@ port module Main exposing (..)
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick, onInput, onSubmit)
-import Http
-import Json.Encode as Encode
-import Json.Decode as Decode
-import Json.Decode.Pipeline exposing (decode, required)
+import LoginPage as PLogin exposing (..)
+import ListPage as PList exposing (..)
+import UploadPage as PUpload exposing (..)
+import Data exposing (..)
 
 
 -- APP
@@ -17,72 +17,12 @@ main =
     Html.program { init = init, view = view, update = update, subscriptions = subscriptions }
 
 
-
--- MODEL
-
-
-type alias Token =
-    String
-
-
-type alias Type =
-    { id : Int
-    , label : String
-    }
-
-
-type alias Item =
-    { key : String
-    , amount : Float
-    , typeId : Int
-    , date : String
-    , description : String
-    , invoice : String
-    }
-
-
-type alias LoginPageModel =
-    { username : String
-    , password : String
-    , token : Maybe Token
-    , error : Maybe String
-    }
-
-
-type alias UploadPageModel =
-    { item : Item
-    , isCapturing : Bool
-    , isLoading : Bool
-    , error : Maybe String
-    }
-
-
-type alias ListPageModel =
-    { items : List Item
-    , error : Maybe String
-    }
-
-
 type alias Model =
     { page : Page
-    , loginPage : LoginPageModel
-    , uploadPage : UploadPageModel
-    , listPage : ListPageModel
+    , loginPage : PLogin.Model
+    , uploadPage : PUpload.Model
+    , listPage : PList.Model
     }
-
-
-types : List Type
-types =
-    [ { id = 1
-      , label = "Lunch"
-      }
-    , { id = 2
-      , label = "Transport"
-      }
-    , { id = 999
-      , label = "Other"
-      }
-    ]
 
 
 init : ( Model, Cmd Msg )
@@ -93,33 +33,9 @@ init =
 model : Model
 model =
     { page = LoginPage
-    , loginPage =
-        { username = ""
-        , password = ""
-        , token = Nothing
-        , error = Nothing
-        }
-    , uploadPage =
-        { item = emptyItem
-        , isCapturing = False
-        , isLoading = False
-        , error = Nothing
-        }
-    , listPage =
-        { items = []
-        , error = Nothing
-        }
-    }
-
-
-emptyItem : Item
-emptyItem =
-    { key = ""
-    , amount = 0
-    , typeId = 999
-    , date = ""
-    , description = ""
-    , invoice = ""
+    , loginPage = PLogin.model
+    , uploadPage = PUpload.model
+    , listPage = PList.model
     }
 
 
@@ -136,10 +52,17 @@ type Page
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-    Sub.batch
-        [ receiveStartCapture StopCapture
-        , receiveToken ReceiveToken
-        ]
+    let
+        loginSub =
+            PLogin.subscriptions model.loginPage
+
+        uploadSub =
+            PUpload.subscriptions model.uploadPage
+    in
+        Sub.batch
+            [ Sub.map LoginPageMsg loginSub
+            , Sub.map UploadPageMsg uploadSub
+            ]
 
 
 
@@ -147,224 +70,73 @@ subscriptions model =
 
 
 type Msg
-    = NoOp
-    | SetPage Page
-    | SetPageUpload
-    | SetPageLit
-    | LoginFormChangeInput String String
-    | LoginFormSubmit
-    | LoginResponse (Result Http.Error Token)
-    | ReceiveToken Token
-    | ListResponse (Result Http.Error (List Item))
-    | UploadFormChangeInput String String
-    | StartUpload
-    | UploadResponse (Result Http.Error Item)
-    | StartCapture
-    | TakePicture
-    | StopCapture Item
-    | CancelCapture
+    = SetPage Page
+    | LoginPageMsg PLogin.Msg
+    | UploadPageMsg PUpload.Msg
+    | ListPageMsg PList.Msg
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
-    let
-        oldLoginPage =
-            model.loginPage
-    in
-        case msg of
-            NoOp ->
-                ( model, Cmd.none )
+    case msg of
+        SetPage newPage ->
+            let
+                cmd =
+                    case newPage of
+                        ListPage ->
+                            case model.loginPage.token of
+                                Just token ->
+                                    Cmd.map ListPageMsg (PList.listRequest token)
 
-            SetPage newPage ->
-                ( { model | page = newPage }, Cmd.none )
+                                _ ->
+                                    Cmd.none
 
-            SetPageUpload ->
-                ( { model | page = UploadPage, uploadPage = updateCaptureStatus True model.uploadPage }, sendStartCapture True )
+                        _ ->
+                            Cmd.none
+            in
+                ( { model | page = newPage }, cmd )
 
-            SetPageLit ->
-                let
-                    msg =
-                        case model.loginPage.token of
-                            Just token ->
-                                listRequest token
+        LoginPageMsg msg ->
+            let
+                ( newModel, cmd ) =
+                    PLogin.update msg model.loginPage
 
-                            _ ->
-                                Cmd.none
-                in
-                    ( { model | page = ListPage }, msg )
+                newPage =
+                    case msg of
+                        ReceiveToken t ->
+                            UploadPage
 
-            StartCapture ->
-                ( { model | uploadPage = updateCaptureStatus True model.uploadPage }, sendStartCapture True )
+                        LoginResponse (Ok t) ->
+                            UploadPage
 
-            TakePicture ->
-                let
-                    newPageWithStatus =
-                        updateCaptureStatus False model.uploadPage
+                        _ ->
+                            model.page
+            in
+                ( { model | loginPage = newModel, page = newPage }
+                , Cmd.map LoginPageMsg cmd
+                )
 
-                    newPageWithLoading =
-                        updateUploadLoading True newPageWithStatus
-                in
-                    ( { model | uploadPage = newPageWithLoading }, sendTakePicture True )
+        UploadPageMsg msg ->
+            let
+                ( newModel, cmd ) =
+                    PUpload.update msg model.uploadPage model.loginPage.token
+            in
+                ( { model | uploadPage = newModel }
+                , Cmd.map UploadPageMsg cmd
+                )
 
-            CancelCapture ->
-                let
-                    newPageWithStatus =
-                        updateCaptureStatus False model.uploadPage
-                in
-                    ( { model | uploadPage = newPageWithStatus }, sendStopCapture True )
-
-            StopCapture item ->
-                let
-                    newPageWithStatus =
-                        updateCaptureStatus False model.uploadPage
-
-                    newPageWithItem =
-                        updateCaptureItem item newPageWithStatus
-
-                    newPageWithLoading =
-                        updateUploadLoading False newPageWithItem
-                in
-                    ( { model | uploadPage = newPageWithLoading }, Cmd.none )
-
-            LoginFormChangeInput inputName inputValue ->
-                let
-                    oldLoginPage =
-                        model.loginPage
-
-                    newLoginPage =
-                        case inputName of
-                            "password" ->
-                                { oldLoginPage | password = inputValue }
-
-                            "username" ->
-                                { oldLoginPage | username = inputValue }
-
-                            _ ->
-                                oldLoginPage
-                in
-                    ( { model | loginPage = newLoginPage }, Cmd.none )
-
-            LoginFormSubmit ->
-                ( model, loginRequest model.loginPage.username model.loginPage.password )
-
-            LoginResponse (Ok token) ->
-                let
-                    currentLoginPage =
-                        model.loginPage
-
-                    newLoginPage =
-                        { currentLoginPage | error = Nothing, token = Just token }
-                in
-                    ( { model | page = UploadPage, loginPage = newLoginPage }, sendToken token )
-
-            LoginResponse (Err error) ->
-                let
-                    currentLoginPage =
-                        model.loginPage
-
-                    newLoginPage =
-                        { currentLoginPage | error = Just "wrong username or password", token = Nothing }
-                in
-                    ( { model | loginPage = newLoginPage }, Cmd.none )
-
-            ReceiveToken token ->
-                let
-                    currentLoginPage =
-                        model.loginPage
-
-                    newLoginPage =
-                        { currentLoginPage | error = Nothing, token = Just token }
-                in
-                    ( { model | page = UploadPage, loginPage = newLoginPage }, Cmd.none )
-
-            ListResponse (Err error) ->
-                ( model, Cmd.none )
-
-            ListResponse (Ok list) ->
-                let
-                    oldPage =
-                        model.listPage
-
-                    newPage =
-                        { oldPage | items = list }
-                in
-                    ( { model | listPage = newPage }, Cmd.none )
-
-            StartUpload ->
-                let
-                    msg =
-                        case model.loginPage.token of
-                            Just token ->
-                                uploadRequest model.uploadPage.item token
-
-                            _ ->
-                                Cmd.none
-                in
-                    ( model, msg )
-
-            UploadFormChangeInput inputName inputValue ->
-                let
-                    oldPage =
-                        model.uploadPage
-
-                    oldItem =
-                        oldPage.item
-
-                    newItem =
-                        case inputName of
-                            "amount" ->
-                                { oldItem | amount = Result.withDefault 0 (String.toFloat inputValue) }
-
-                            "date" ->
-                                { oldItem | date = inputValue }
-
-                            "typeId" ->
-                                { oldItem | typeId = 1 }
-
-                            "description" ->
-                                { oldItem | description = inputValue }
-
-                            _ ->
-                                oldItem
-
-                    newPage =
-                        { oldPage | item = newItem }
-                in
-                    ( { model | uploadPage = newPage }, Cmd.none )
-
-            UploadResponse (Ok item) ->
-                ( model, Cmd.none )
-
-            UploadResponse (Err error) ->
-                ( model, Cmd.none )
-
-
-
--- PORTS
-
-
-port sendToken : Token -> Cmd msg
-
-
-port receiveToken : (Token -> msg) -> Sub msg
-
-
-port sendStartCapture : Bool -> Cmd msg
-
-
-port sendStopCapture : Bool -> Cmd msg
-
-
-port sendTakePicture : Bool -> Cmd msg
-
-
-port receiveStartCapture : (Item -> msg) -> Sub msg
+        ListPageMsg msg ->
+            let
+                ( newModel, cmd ) =
+                    PList.update msg model.listPage
+            in
+                ( { model | listPage = newModel }
+                , Cmd.map ListPageMsg cmd
+                )
 
 
 
 -- VIEW
--- Html is defined as: elem [ attribs ][ children ]
--- CSS can be applied via class names or inline style attrib
 
 
 view : Model -> Html Msg
@@ -372,289 +144,22 @@ view model =
     div []
         [ div [ class "nav" ]
             [ button [ onClick (SetPage LoginPage) ] [ text "login" ]
-            , button [ onClick SetPageLit ] [ text "List" ]
-            , button [ onClick SetPageUpload ] [ text "upload" ]
+            , button [ onClick (SetPage ListPage) ] [ text "List" ]
+            , button [ onClick (SetPage UploadPage) ] [ text "upload" ]
             ]
         , case model.page of
             LoginPage ->
-                loginPageView model.loginPage
+                Html.map LoginPageMsg
+                    (PLogin.view model.loginPage)
 
             UploadPage ->
-                uploadPageView model.uploadPage
+                Html.map UploadPageMsg
+                    (PUpload.view model.uploadPage)
 
             ListPage ->
-                listPageView model.listPage
+                Html.map ListPageMsg
+                    (PList.view model.listPage)
 
             _ ->
                 div [] [ text "no page" ]
         ]
-
-
-loginPageView : LoginPageModel -> Html Msg
-loginPageView model =
-    Html.form [ class "login", onSubmit LoginFormSubmit ]
-        [ div []
-            [ text
-                (case model.error of
-                    Nothing ->
-                        ""
-
-                    Just msg ->
-                        msg
-                )
-            ]
-        , div []
-            [ label [] [ text "User Name" ]
-            , input
-                [ type_ "text"
-                , value model.username
-                , onInput (LoginFormChangeInput "username")
-                ]
-                []
-            ]
-        , div []
-            [ label [] [ text "Password" ]
-            , input
-                [ type_ "password"
-                , value model.password
-                , onInput (LoginFormChangeInput "password")
-                ]
-                []
-            ]
-        , div []
-            [ label [] []
-            , button [ type_ "submit" ] [ text "Login" ]
-            ]
-        ]
-
-
-uploadPageView : UploadPageModel -> Html Msg
-uploadPageView model =
-    let
-        currentDisplay =
-            if model.isCapturing then
-                "block"
-            else
-                "none"
-    in
-        div []
-            [ if model.isLoading then
-                div [] [ text "is loading..." ]
-              else
-                text ""
-            , Html.form [ class "login-form", onSubmit StartUpload ]
-                [ fieldset []
-                    [ legend [] [ text "Upload form" ]
-                    , div []
-                        [ button [ onClick StartCapture, type_ "button" ] [ text "retake" ]
-                        ]
-                    , div []
-                        [ img [ src model.item.invoice ] []
-                        ]
-                    , div []
-                        [ label [] [ text "date" ]
-                        , input
-                            [ type_ "date"
-                            , value model.item.date
-                            , onInput (UploadFormChangeInput "date")
-                            ]
-                            []
-                        ]
-                    , div []
-                        [ label [] [ text "type" ]
-                        , select
-                            [ onInput (UploadFormChangeInput "type")
-                            ]
-                            (typeToSelectOptions
-                                types
-                                model.item.typeId
-                            )
-                        ]
-                    , div []
-                        [ label [] [ text "Amount" ]
-                        , input
-                            [ type_ "number"
-                            , step "0.01"
-                            , value (toString model.item.amount)
-                            , onInput (UploadFormChangeInput "amount")
-                            ]
-                            []
-                        ]
-                    , div []
-                        [ label [] [ text "Description" ]
-                        , input
-                            [ type_ "text"
-                            , value model.item.description
-                            , onInput (UploadFormChangeInput "description")
-                            ]
-                            []
-                        ]
-                    , div []
-                        [ label [] []
-                        , button [ type_ "submit" ] [ text "Save" ]
-                        ]
-                    ]
-                ]
-            , div
-                [ style [ ( "display", currentDisplay ) ] ]
-                [ video [ id "video", class "camera-video" ] []
-                , canvas [ id "canvas", class "canvas" ] []
-                , button [ class "camera-capture", onClick TakePicture ] []
-                , button [ class "camera-stop", onClick CancelCapture ] []
-                ]
-            ]
-
-
-listPageView : ListPageModel -> Html Msg
-listPageView model =
-    div []
-        [ ul [] (List.map listItemView model.items)
-        ]
-
-
-listItemView : Item -> Html Msg
-listItemView item =
-    li []
-        [ div [] [ text item.date ]
-        , div [] [ text <| typeIdToText item.typeId ]
-        , div [] [ text ("amount:" ++ toString (item.amount)) ]
-        ]
-
-
-updateCaptureStatus : Bool -> UploadPageModel -> UploadPageModel
-updateCaptureStatus status page =
-    { page | isCapturing = status }
-
-
-updateUploadLoading : Bool -> UploadPageModel -> UploadPageModel
-updateUploadLoading status page =
-    { page | isLoading = status }
-
-
-updateCaptureItem : Item -> UploadPageModel -> UploadPageModel
-updateCaptureItem newItem page =
-    { page | item = newItem }
-
-
-typeToSelectOptions : List Type -> Int -> List (Html Msg)
-typeToSelectOptions types selectedID =
-    List.map (\item -> option [ value <| toString item.id, selected (selectedID == item.id) ] [ text item.label ]) types
-
-
-typeIdToText : Int -> String
-typeIdToText typeId =
-    let
-        filteredList =
-            List.filter (\i -> i.id == typeId) types
-
-        first =
-            List.head filteredList
-    in
-        case first of
-            Just i ->
-                i.label
-
-            Nothing ->
-                "No Type"
-
-
-
--- HTTTP
-
-
-loginRequest : String -> String -> Cmd Msg
-loginRequest user password =
-    let
-        req =
-            Http.request
-                { method = "POST"
-                , body = loginEncoder user password |> Http.jsonBody
-                , url = "https://www.googleapis.com/identitytoolkit/v3/relyingparty/verifyPassword?key=AIzaSyAcFNMw-GikdJ019_Uvg8gVGcoR1TRVJfY"
-                , expect = Http.expectJson loginDecoder
-                , headers = []
-                , timeout = Nothing
-                , withCredentials = False
-                }
-    in
-        Http.send LoginResponse req
-
-
-loginEncoder : String -> String -> Encode.Value
-loginEncoder username password =
-    let
-        params =
-            [ ( "email", Encode.string username )
-            , ( "password", Encode.string password )
-            , ( "returnSecureToken", Encode.bool True )
-            ]
-    in
-        Encode.object params
-
-
-loginDecoder : Decode.Decoder Token
-loginDecoder =
-    Decode.at [ "idToken" ] Decode.string
-
-
-listRequest : Token -> Cmd Msg
-listRequest token =
-    let
-        req =
-            Http.request
-                { method = "GET"
-                , body = Http.emptyBody
-                , url = "http://localhost:5002/elm-receipts/us-central1/api/receipts/"
-                , expect = Http.expectJson listDecoder
-                , headers = [ Http.header "Authorization" ("Bearer " ++ token) ]
-                , timeout = Nothing
-                , withCredentials = False
-                }
-    in
-        Http.send ListResponse req
-
-
-listDecoder : Decode.Decoder (List Item)
-listDecoder =
-    Decode.list itemDecoder
-
-
-itemDecoder : Decode.Decoder Item
-itemDecoder =
-    decode Item
-        |> Json.Decode.Pipeline.required "key" Decode.string
-        |> Json.Decode.Pipeline.required "amount" Decode.float
-        |> Json.Decode.Pipeline.required "typeId" Decode.int
-        |> Json.Decode.Pipeline.required "date" Decode.string
-        |> Json.Decode.Pipeline.required "description" Decode.string
-        |> Json.Decode.Pipeline.required "invoice" Decode.string
-
-
-uploadRequest : Item -> Token -> Cmd Msg
-uploadRequest item token =
-    let
-        req =
-            Http.request
-                { method = "POST"
-                , body = uploadEncoder item |> Http.jsonBody
-                , url = "http://localhost:5002/elm-receipts/us-central1/api/receipts/"
-                , expect = Http.expectJson itemDecoder
-                , headers = [ Http.header "Authorization" ("Bearer " ++ token) ]
-                , timeout = Nothing
-                , withCredentials = False
-                }
-    in
-        Http.send UploadResponse req
-
-
-uploadEncoder : Item -> Encode.Value
-uploadEncoder item =
-    let
-        params =
-            [ ( "amount", Encode.float item.amount )
-            , ( "typeId", Encode.int item.typeId )
-            , ( "date", Encode.string item.date )
-            , ( "description", Encode.string item.description )
-            , ( "invoice", Encode.string item.invoice )
-            ]
-    in
-        Encode.object params
