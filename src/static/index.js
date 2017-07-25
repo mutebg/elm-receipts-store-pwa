@@ -34,6 +34,9 @@ const init = () => {
     )
       .then(response => response.json())
       .then(response => {
+        localStorage.setItem("token", response.id_token);
+        localStorage.setItem("refreshToken", response.refresh_token);
+
         elmApp.ports.receiveToken.send({
           token: response.id_token,
           refreshToken: response.refresh_token

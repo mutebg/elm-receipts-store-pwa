@@ -9,26 +9,31 @@ import Json.Encode as Encode
 import ListPage exposing (itemDecoder)
 
 
+type Status
+    = None
+    | IsCapturing
+    | IsUploading
+    | IsSaving
+    | ShowMessage String
+    | ShowError String
+
+
 type alias Model =
     { item : Item
-    , isCapturing : Bool
-    , isLoading : Bool
-    , error : Maybe String
+    , status : Status
     }
 
 
 model : Model
 model =
     { item = Data.emptyItem
-    , isCapturing = False
-    , isLoading = False
-    , error = Nothing
+    , status = None
     }
 
 
 type Msg
     = UploadFormChangeInput String String
-    | StartUpload
+    | StartSave
     | UploadResponse (Result Http.Error Item)
     | StartCapture
     | TakePicture
@@ -40,31 +45,18 @@ update : Msg -> Model -> Maybe Data.Token -> ( Model, Cmd Msg )
 update msg model token =
     case msg of
         StartCapture ->
-            ( updateCaptureStatus True model, Data.sendStartCapture True )
+            ( { model | status = IsCapturing }, Data.sendStartCapture True )
 
         TakePicture ->
-            let
-                newModel =
-                    model
-                        |> updateCaptureStatus False
-                        |> updateUploadLoading True
-            in
-                ( newModel, Data.sendTakePicture True )
+            ( { model | status = IsUploading }, Data.sendTakePicture True )
 
         CancelCapture ->
-            ( updateCaptureStatus False model, Data.sendStopCapture True )
+            ( { model | status = None }, Data.sendStopCapture True )
 
-        StopCapture item ->
-            let
-                newModel =
-                    model
-                        |> updateCaptureStatus False
-                        |> updateCaptureItem item
-                        |> updateUploadLoading False
-            in
-                ( newModel, Cmd.none )
+        StopCapture newItem ->
+            ( { model | item = newItem, status = None }, Cmd.none )
 
-        StartUpload ->
+        StartSave ->
             let
                 msg =
                     case token of
@@ -74,7 +66,7 @@ update msg model token =
                         _ ->
                             Cmd.none
             in
-                ( model, msg )
+                ( { model | status = IsSaving }, msg )
 
         UploadFormChangeInput inputName inputValue ->
             let
@@ -101,27 +93,44 @@ update msg model token =
                 ( { model | item = newItem }, Cmd.none )
 
         UploadResponse (Ok item) ->
-            ( model, Cmd.none )
+            ( { model | status = ShowMessage "Success" }, Cmd.none )
 
         UploadResponse (Err error) ->
-            ( model, Cmd.none )
+            ( { model | status = ShowError "Error. Try again" }, Cmd.none )
 
 
 view : Model -> Html Msg
 view model =
     let
         currentDisplay =
-            if model.isCapturing then
+            if model.status == IsCapturing then
                 "block"
             else
                 "none"
+
+        message =
+            case model.status of
+                None ->
+                    text ""
+
+                IsCapturing ->
+                    text ""
+
+                IsUploading ->
+                    div [] [ text "Image processing..." ]
+
+                IsSaving ->
+                    div [] [ text "Saving..." ]
+
+                ShowMessage msg ->
+                    div [] [ text msg ]
+
+                ShowError msg ->
+                    div [] [ text msg ]
     in
         div []
-            [ if model.isLoading then
-                div [] [ text "is loading..." ]
-              else
-                text ""
-            , Html.form [ class "login-form", onSubmit StartUpload ]
+            [ message
+            , Html.form [ class "login-form", onSubmit StartSave ]
                 [ fieldset []
                     [ legend [] [ text "Upload form" ]
                     , div []
@@ -182,21 +191,6 @@ view model =
                 , button [ class "camera-stop", onClick CancelCapture ] []
                 ]
             ]
-
-
-updateCaptureStatus : Bool -> Model -> Model
-updateCaptureStatus status page =
-    { page | isCapturing = status }
-
-
-updateUploadLoading : Bool -> Model -> Model
-updateUploadLoading status page =
-    { page | isLoading = status }
-
-
-updateCaptureItem : Item -> Model -> Model
-updateCaptureItem newItem page =
-    { page | item = newItem }
 
 
 typeToSelectOptions : List Data.Type -> Int -> List (Html Msg)
