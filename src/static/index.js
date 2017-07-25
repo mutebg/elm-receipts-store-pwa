@@ -5,8 +5,9 @@ require("./styles/main.scss");
 var Elm = require("../elm/Main");
 var elmApp = Elm.Main.embed(document.getElementById("main"));
 
-elmApp.ports.sendToken.subscribe(token => {
-  localStorage.setItem("token", token);
+elmApp.ports.sendToken.subscribe(credetials => {
+  localStorage.setItem("token", credetials.token);
+  localStorage.setItem("refreshToken", credetials.refreshToken);
 });
 
 navigator.getUserMedia =
@@ -15,9 +16,29 @@ navigator.getUserMedia =
   navigator.mozGetUserMedia;
 
 const init = () => {
-  const token = localStorage.getItem("token");
-  if (token) {
-    elmApp.ports.receiveToken.send(token);
+  const refreshToken = localStorage.getItem("refreshToken");
+  if (refreshToken) {
+    fetch(
+      "https://securetoken.googleapis.com/v1/token?key=AIzaSyAcFNMw-GikdJ019_Uvg8gVGcoR1TRVJfY",
+      {
+        method: "POST",
+        headers: {
+          Accept: "application/json, text/plain, */*",
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          grant_type: "refresh_token",
+          refresh_token: refreshToken
+        })
+      }
+    )
+      .then(response => response.json())
+      .then(response => {
+        elmApp.ports.receiveToken.send({
+          token: response.id_token,
+          refreshToken: response.refresh_token
+        });
+      });
   }
 };
 

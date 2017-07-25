@@ -1,6 +1,12 @@
 port module Data exposing (..)
 
 
+type alias Credetials =
+    { token : Maybe Token
+    , refreshToken : Maybe Token
+    }
+
+
 cfg :
     { api_url : String
     }
@@ -67,10 +73,10 @@ apiUrl str =
 -- PORTS
 
 
-port sendToken : Token -> Cmd msg
+port sendToken : Credetials -> Cmd msg
 
 
-port receiveToken : (Token -> msg) -> Sub msg
+port receiveToken : (Credetials -> msg) -> Sub msg
 
 
 port sendStartCapture : Bool -> Cmd msg

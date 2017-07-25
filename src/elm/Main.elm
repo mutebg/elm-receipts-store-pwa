@@ -83,7 +83,7 @@ update msg model =
                 cmd =
                     case newPage of
                         ListPage ->
-                            case model.loginPage.token of
+                            case model.loginPage.cred.token of
                                 Just token ->
                                     Cmd.map ListPageMsg (PList.listRequest token)
 
@@ -118,7 +118,7 @@ update msg model =
         UploadPageMsg msg ->
             let
                 ( newModel, cmd ) =
-                    PUpload.update msg model.uploadPage model.loginPage.token
+                    PUpload.update msg model.uploadPage model.loginPage.cred.token
             in
                 ( { model | uploadPage = newModel }
                 , Cmd.map UploadPageMsg cmd

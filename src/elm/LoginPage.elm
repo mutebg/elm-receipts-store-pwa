@@ -4,16 +4,17 @@ import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick, onInput, onSubmit)
 import Http
-import Data exposing (Token)
+import Data exposing (Credetials)
 import Json.Encode as Encode
 import Json.Decode as Decode
+import Json.Decode.Pipeline exposing (decode, required)
 
 
 type alias Model =
     { username : String
     , password : String
-    , token : Maybe Token
     , error : Maybe String
+    , cred : Credetials
     }
 
 
@@ -21,16 +22,19 @@ model : Model
 model =
     { username = ""
     , password = ""
-    , token = Nothing
     , error = Nothing
+    , cred =
+        { token = Nothing
+        , refreshToken = Nothing
+        }
     }
 
 
 type Msg
     = LoginFormChangeInput String String
     | LoginFormSubmit
-    | LoginResponse (Result Http.Error Token)
-    | ReceiveToken Token
+    | LoginResponse (Result Http.Error Credetials)
+    | ReceiveToken Credetials
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -54,8 +58,8 @@ update msg model =
         LoginFormSubmit ->
             ( model, loginRequest model.username model.password )
 
-        LoginResponse (Ok token) ->
-            ( { model | error = Nothing, token = Just token }, Data.sendToken token )
+        LoginResponse (Ok newCred) ->
+            ( { model | error = Nothing, cred = newCred }, Data.sendToken newCred )
 
         LoginResponse (Err error) ->
             let
@@ -66,11 +70,16 @@ update msg model =
 
                         _ ->
                             "Login Error!"
-            in
-                ( { model | error = Just errMsg, token = Nothing }, Cmd.none )
 
-        ReceiveToken token ->
-            ( { model | error = Nothing, token = Just token }, Cmd.none )
+                newCred =
+                    { token = Nothing
+                    , refreshToken = Nothing
+                    }
+            in
+                ( { model | error = Just errMsg, cred = newCred }, Cmd.none )
+
+        ReceiveToken newCred ->
+            ( { model | error = Nothing, cred = newCred }, Cmd.none )
 
 
 view : Model -> Html Msg
@@ -140,9 +149,17 @@ loginEncoder username password =
         Encode.object params
 
 
-loginDecoder : Decode.Decoder Token
+
+-- loginDecoder : Decode.Decoder Token
+-- loginDecoder =
+--     Decode.at [ "idToken" ] Decode.string
+
+
+loginDecoder : Decode.Decoder Credetials
 loginDecoder =
-    Decode.at [ "idToken" ] Decode.string
+    decode Credetials
+        |> Json.Decode.Pipeline.required "idToken" (Decode.nullable Decode.string)
+        |> Json.Decode.Pipeline.required "refreshToken" (Decode.nullable Decode.string)
 
 
 errorDecoder : Decode.Decoder String
