@@ -95,7 +95,7 @@ view model =
                         msg
                 )
             ]
-        , div []
+        , div [ class "form-row" ]
             [ label [] [ text "User Name" ]
             , input
                 [ type_ "text"
@@ -104,7 +104,7 @@ view model =
                 ]
                 []
             ]
-        , div []
+        , div [ class "form-row" ]
             [ label [] [ text "Password" ]
             , input
                 [ type_ "password"

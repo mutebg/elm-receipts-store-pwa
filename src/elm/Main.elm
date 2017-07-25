@@ -140,25 +140,46 @@ update msg model =
 
 view : Model -> Html Msg
 view model =
-    div []
-        [ div [ class "nav" ]
-            [ button [ onClick (SetPage LoginPage) ] [ text "login" ]
-            , button [ onClick (SetPage ListPage) ] [ text "List" ]
-            , button [ onClick (SetPage UploadPage) ] [ text "upload" ]
+    div [ class "app" ]
+        [ headerView model
+        , div [ class "page" ]
+            [ case model.page of
+                LoginPage ->
+                    Html.map LoginPageMsg
+                        (PLogin.view model.loginPage)
+
+                UploadPage ->
+                    Html.map UploadPageMsg
+                        (PUpload.view model.uploadPage)
+
+                ListPage ->
+                    Html.map ListPageMsg
+                        (PList.view model.listPage)
+
+                _ ->
+                    div [] [ text "no page" ]
             ]
-        , case model.page of
-            LoginPage ->
-                Html.map LoginPageMsg
-                    (PLogin.view model.loginPage)
+        ]
 
-            UploadPage ->
-                Html.map UploadPageMsg
-                    (PUpload.view model.uploadPage)
 
-            ListPage ->
-                Html.map ListPageMsg
-                    (PList.view model.listPage)
+headerView : Model -> Html Msg
+headerView model =
+    div [ class "header" ]
+        [ button [ onClick (SetPage LoginPage) ] [ text "login" ]
+        , button [ onClick (SetPage ListPage) ] [ text "List" ]
+        , button [ onClick (SetPage UploadPage) ] [ text "upload" ]
+        , div []
+            [ case model.page of
+                LoginPage ->
+                    text "LoginPage"
 
-            _ ->
-                div [] [ text "no page" ]
+                UploadPage ->
+                    text "UploadPage"
+
+                ListPage ->
+                    text "List"
+
+                _ ->
+                    text ""
+            ]
         ]

@@ -21,6 +21,7 @@ type Status
     | ShowError String
 
 
+messageDelay : number
 messageDelay =
     5000
 
@@ -150,15 +151,14 @@ view model =
     in
         div []
             [ message
-            , Html.form [ class "login-form", onSubmit StartSave ]
-                [ legend [] [ text "Upload form" ]
-                , div []
+            , Html.form [ class "form", onSubmit StartSave ]
+                [ div []
                     [ button [ onClick StartCapture, type_ "button" ] [ text "retake" ]
                     ]
                 , div []
-                    [ img [ src model.item.invoice ] []
+                    [ img [ src model.item.invoice, height 100 ] []
                     ]
-                , div []
+                , div [ class "form-row form-row--half" ]
                     [ label [] [ text "date" ]
                     , input
                         [ type_ "date"
@@ -167,17 +167,7 @@ view model =
                         ]
                         []
                     ]
-                , div []
-                    [ label [] [ text "type" ]
-                    , select
-                        [ onInput (UploadFormChangeInput "type")
-                        ]
-                        (typeToSelectOptions
-                            Data.types
-                            model.item.typeId
-                        )
-                    ]
-                , div []
+                , div [ class "form-row form-row--half" ]
                     [ label [] [ text "Amount" ]
                     , input
                         [ type_ "number"
@@ -187,7 +177,17 @@ view model =
                         ]
                         []
                     ]
-                , div []
+                , div [ class "form-row" ]
+                    [ label [] [ text "type" ]
+                    , select
+                        [ onInput (UploadFormChangeInput "type")
+                        ]
+                        (typeToSelectOptions
+                            Data.types
+                            model.item.typeId
+                        )
+                    ]
+                , div [ class "form-row" ]
                     [ label [] [ text "Description" ]
                     , input
                         [ type_ "text"
