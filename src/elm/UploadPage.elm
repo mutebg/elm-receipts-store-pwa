@@ -7,6 +7,9 @@ import Data exposing (Item)
 import Http
 import Json.Encode as Encode
 import ListPage exposing (itemDecoder)
+import Time
+import Process
+import Task
 
 
 type Status
@@ -16,6 +19,10 @@ type Status
     | IsSaving
     | ShowMessage String
     | ShowError String
+
+
+messageDelay =
+    5000
 
 
 type alias Model =
@@ -39,6 +46,7 @@ type Msg
     | TakePicture
     | StopCapture Item
     | CancelCapture
+    | ClearStatus
 
 
 update : Msg -> Model -> Maybe Data.Token -> ( Model, Cmd Msg )
@@ -93,10 +101,22 @@ update msg model token =
                 ( { model | item = newItem }, Cmd.none )
 
         UploadResponse (Ok item) ->
-            ( { model | status = ShowMessage "Success" }, Cmd.none )
+            ( { model | status = ShowMessage "Success", item = Data.emptyItem }, delay messageDelay ClearStatus )
 
         UploadResponse (Err error) ->
-            ( { model | status = ShowError "Error. Try again" }, Cmd.none )
+            let
+                errMsg =
+                    case error of
+                        Http.BadStatus resp ->
+                            resp.body
+
+                        _ ->
+                            "Error. Try again"
+            in
+                ( { model | status = ShowError errMsg }, delay messageDelay ClearStatus )
+
+        ClearStatus ->
+            ( { model | status = None }, Cmd.none )
 
 
 view : Model -> Html Msg
@@ -117,70 +137,68 @@ view model =
                     text ""
 
                 IsUploading ->
-                    div [] [ text "Image processing..." ]
+                    div [ class "alert alert--info" ] [ text "Image processing..." ]
 
                 IsSaving ->
-                    div [] [ text "Saving..." ]
+                    div [ class "alert alert--info" ] [ text "Saving..." ]
 
                 ShowMessage msg ->
-                    div [] [ text msg ]
+                    div [ class "alert alert--success" ] [ text msg ]
 
                 ShowError msg ->
-                    div [] [ text msg ]
+                    div [ class "alert alert--error" ] [ text msg ]
     in
         div []
             [ message
             , Html.form [ class "login-form", onSubmit StartSave ]
-                [ fieldset []
-                    [ legend [] [ text "Upload form" ]
-                    , div []
-                        [ button [ onClick StartCapture, type_ "button" ] [ text "retake" ]
+                [ legend [] [ text "Upload form" ]
+                , div []
+                    [ button [ onClick StartCapture, type_ "button" ] [ text "retake" ]
+                    ]
+                , div []
+                    [ img [ src model.item.invoice ] []
+                    ]
+                , div []
+                    [ label [] [ text "date" ]
+                    , input
+                        [ type_ "date"
+                        , value model.item.date
+                        , onInput (UploadFormChangeInput "date")
                         ]
-                    , div []
-                        [ img [ src model.item.invoice ] []
+                        []
+                    ]
+                , div []
+                    [ label [] [ text "type" ]
+                    , select
+                        [ onInput (UploadFormChangeInput "type")
                         ]
-                    , div []
-                        [ label [] [ text "date" ]
-                        , input
-                            [ type_ "date"
-                            , value model.item.date
-                            , onInput (UploadFormChangeInput "date")
-                            ]
-                            []
+                        (typeToSelectOptions
+                            Data.types
+                            model.item.typeId
+                        )
+                    ]
+                , div []
+                    [ label [] [ text "Amount" ]
+                    , input
+                        [ type_ "number"
+                        , step "0.01"
+                        , value (toString model.item.amount)
+                        , onInput (UploadFormChangeInput "amount")
                         ]
-                    , div []
-                        [ label [] [ text "type" ]
-                        , select
-                            [ onInput (UploadFormChangeInput "type")
-                            ]
-                            (typeToSelectOptions
-                                Data.types
-                                model.item.typeId
-                            )
+                        []
+                    ]
+                , div []
+                    [ label [] [ text "Description" ]
+                    , input
+                        [ type_ "text"
+                        , value model.item.description
+                        , onInput (UploadFormChangeInput "description")
                         ]
-                    , div []
-                        [ label [] [ text "Amount" ]
-                        , input
-                            [ type_ "number"
-                            , step "0.01"
-                            , value (toString model.item.amount)
-                            , onInput (UploadFormChangeInput "amount")
-                            ]
-                            []
-                        ]
-                    , div []
-                        [ label [] [ text "Description" ]
-                        , input
-                            [ type_ "text"
-                            , value model.item.description
-                            , onInput (UploadFormChangeInput "description")
-                            ]
-                            []
-                        ]
-                    , div []
-                        [ label [] []
-                        , button [ type_ "submit" ] [ text "Save" ]
-                        ]
+                        []
+                    ]
+                , div []
+                    [ label [] []
+                    , button [ type_ "submit" ] [ text "Save" ]
                     ]
                 ]
             , div
@@ -234,3 +252,10 @@ subscriptions model =
     Sub.batch
         [ Data.receiveStartCapture StopCapture
         ]
+
+
+delay : Time.Time -> msg -> Cmd msg
+delay time msg =
+    Process.sleep time
+        |> Task.andThen (always <| Task.succeed msg)
+        |> Task.perform identity
