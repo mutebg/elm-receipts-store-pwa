@@ -1,12 +1,12 @@
 {
-  "name": "elm-webpack-starter",
-  "description": "Webpack setup for writing Elm apps",
-  "version": "0.8.6",
+  "name": "elm-receipts-store-pwa",
+  "description": "Store receipts in the cloud :)",
+  "version": "0.1.0",
   "license": "MIT",
-  "author": "Peter Morawiec",
+  "author": "Stoyan Delev",
   "repository": {
     "type": "git",
-    "url": "https://github.com/moarwick/elm-webpack-starter"
+    "url": "https://github.com/mutebg/elm-receipts-store-pwa"
   },
   "scripts": {
     "start": "webpack-dev-server --hot --inline",
