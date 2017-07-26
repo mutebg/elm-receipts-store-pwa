@@ -127,13 +127,13 @@ if (isProd === true) {
       ]),
       new BabiliPlugin(),
       new WebpackPwaManifest({
-        name: "InvocePWA",
-        short_name: "InvocePWA",
-        description: "Save my invoices",
+        name: "Store my receipts",
+        short_name: "Receipts",
+        description: "Store my receipts",
         background_color: "#ffffff",
         icons: [
           {
-            src: path.resolve("src/static/img/elm.jpg"),
+            src: path.resolve("src/static/img/icon.png"),
             sizes: [96, 128, 192, 256, 384, 512] // multiple sizes
           }
         ]
