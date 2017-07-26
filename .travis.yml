@@ -19,7 +19,7 @@ script:
   - cd ..
 
 after_success:
-  - firebase deploy --token $FIREBASE_TOKEN --non-interactive
+  - firebase deploy --only hosting --token $FIREBASE_TOKEN --non-interactive
 
 notifications:
   email:
