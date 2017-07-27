@@ -134,3 +134,14 @@ elmApp.ports.sendStartCapture.subscribe(event => {
 });
 
 init();
+
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker
+    .register("sw.js")
+    .then(registration => {
+      console.log("SW registerd");
+    })
+    .catch(error => {
+      console.log("SW fail to register", error);
+    });
+}
