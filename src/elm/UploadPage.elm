@@ -158,27 +158,29 @@ view model =
                 , div []
                     [ img [ src model.item.invoice, height 100 ] []
                     ]
-                , div [ class "form-row form-row--half" ]
-                    [ label [] [ text "date" ]
-                    , input
-                        [ type_ "date"
-                        , value model.item.date
-                        , onInput (UploadFormChangeInput "date")
+                , div [ class "form-row-split" ]
+                    [ div [ class "form-row form-row--half" ]
+                        [ label [] [ text "Date" ]
+                        , input
+                            [ type_ "date"
+                            , value model.item.date
+                            , onInput (UploadFormChangeInput "date")
+                            ]
+                            []
                         ]
-                        []
-                    ]
-                , div [ class "form-row form-row--half" ]
-                    [ label [] [ text "Amount" ]
-                    , input
-                        [ type_ "number"
-                        , step "0.01"
-                        , value (toString model.item.amount)
-                        , onInput (UploadFormChangeInput "amount")
+                    , div [ class "form-row form-row--half" ]
+                        [ label [] [ text "Amount" ]
+                        , input
+                            [ type_ "number"
+                            , step "0.01"
+                            , value (toString model.item.amount)
+                            , onInput (UploadFormChangeInput "amount")
+                            ]
+                            []
                         ]
-                        []
                     ]
                 , div [ class "form-row" ]
-                    [ label [] [ text "type" ]
+                    [ label [] [ text "Type" ]
                     , select
                         [ onInput (UploadFormChangeInput "type")
                         ]
