@@ -200,15 +200,15 @@ view model =
                     ]
                 , div []
                     [ label [] []
-                    , button [ type_ "submit" ] [ text "Save" ]
+                    , button [ type_ "submit", class "FAB FAB--centre" ] [ text "Save" ]
                     ]
                 ]
             , div
                 [ style [ ( "display", currentDisplay ) ] ]
                 [ video [ id "video", class "camera-video" ] []
                 , canvas [ id "canvas", class "canvas" ] []
-                , button [ class "camera-capture", onClick TakePicture ] []
-                , button [ class "camera-stop", onClick CancelCapture ] []
+                , button [ class "FAB FAB--centre", onClick TakePicture ] []
+                , button [ class "FAB FAB--right FAB--small", onClick CancelCapture ] []
                 ]
             ]
 

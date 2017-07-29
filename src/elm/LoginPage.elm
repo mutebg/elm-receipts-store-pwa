@@ -115,7 +115,7 @@ view model =
             ]
         , div []
             [ label [] []
-            , button [ type_ "submit" ] [ text "Login" ]
+            , button [ type_ "submit", class "FAB FAB--centre" ] [ text "Login" ]
             ]
         ]
 
