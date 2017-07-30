@@ -31,6 +31,7 @@ body {
 
 .page {
   padding: 20px;
+  height: 100%;
 }
 
 .camera-video {
@@ -87,6 +88,14 @@ body {
   }
 }
 
+.form {
+  display: flex;
+  flex-direction: column;
+
+  &__bottom {
+  }
+}
+
 .form-row-split {
   display: flex;
   justify-content: space-between;
@@ -130,6 +139,15 @@ body {
       border-bottom-color: #d9d9d9;
     }
   }
+}
+
+.form-img {
+  position: relative;
+  height: 0;
+  padding-bottom: 66%;
+  background-size: cover;
+  background-repeat: no-repeat;
+  margin-bottom: 1em;
 }
 
 .FAB {
