@@ -58,7 +58,13 @@ const startVideo = video =>
   new Promise((resolve, reject) => {
     if (navigator.getUserMedia) {
       navigator.getUserMedia(
-        { video: { facingMode: "environment" } },
+        {
+          video: {
+            facingMode: "environment",
+            width: window.screen.width,
+            height: window.screen.height
+          }
+        },
         stream => {
           video.srcObject = stream;
           video.onloadedmetadata = () => {
@@ -125,8 +131,8 @@ elmApp.ports.sendStartCapture.subscribe(event => {
   requestAnimationFrame(() => {
     videoGlobal = document.querySelector("#video");
     canvasGlobal = document.querySelector("#canvas");
-    canvasGlobal.width = videoGlobal.offsetWidth;
-    canvasGlobal.height = videoGlobal.offsetHeight;
+    canvasGlobal.width = window.screen.width;
+    canvasGlobal.height = window.screen.height;
     startVideo(videoGlobal).then(stream => {
       streamGlobal = stream;
     });
