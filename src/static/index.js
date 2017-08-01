@@ -89,8 +89,6 @@ const saveImage = blobImage => {
   formData.append("file", blobImage);
 
   const headers = new Headers();
-  //headers.append("Content-Type", "text/plain");
-  //headers.append("Content-Length", content.length.toString());
   headers.append("Authorization", "Bearer " + localStorage.getItem("token"));
   return fetch(
     "https://us-central1-elm-receipts.cloudfunctions.net/api/upload/",
